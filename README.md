@@ -1,16 +1,15 @@
 # ML Pipeline
 
-This an ongoing project to build a scalable ML Pipeline to apply to several Machine Learning problems.
+This a project to build a scalable ML Pipeline to apply to several Machine Learning problems.
 
-Build as part of ML for Public Policy Spring 2019 at UChicago, taught by Prof. Rayid Ghani.
+Build as part of ML for Public Policy Spring 2019 at UChicago, taught by Prof. Rayid Ghani. 
+
+Last updated: May 19, 2020.
 
 ## Contents
-data_cleaning.py: program to import, clean, explore and prepare data for a ML project.
 
-classifiers.py: program to build, train and evaluate different type of Classifiers.
-
-Assignment_03_writeup: Jupyter Notebook to be graded for Assignment 03.
-
-Assignment_03_ongoing: Jupyter Notebook with additional progress on Assignment 03. Not to be graded.
-
-Data: folder that contains data for Assignments and testing the pipeline.
+ - data_cleaning.py: program to import, clean, explore and prepare data
+   for a ML project. Adapted for the project to predict if a schooll project will be funded.
+ - classifiers.py: program to build, train and evaluate different type of Classifiers.
+ - [Report.pdf](https://github.com/angelicavi/capp_ml_spring2020/blob/master/Report.pdf "Report.pdf") the final report of a project using data_cleaning and classifiers.py to predict if school project will not be fully funded within 60 days.
+ - run_pipeline.ipynb: Jupiter Notebook where the pipeline is run.
