@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import geopandas as gp
-import regex as r
 from scipy import stats
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -52,21 +51,21 @@ def get_projects_df(data_filepath):
     df = pd.read_csv(data_filepath, dtype=var_types)
 
     for col in date_cols:
-        print("Converting {} to datetime".format(col))
+        # print("Converting {} to datetime".format(col))
         df[col] = pd.to_datetime(df[col], format='%m/%d/%y')
 
     for col in bool_cols:
-        print("Converting {} to binary".format(col))
+        # print("Converting {} to binary".format(col))
         df[col] = df[col].map(to_binary)
 
     df['female_teacher'] = df['teacher_prefix'].map(to_gender)
     df.drop(['teacher_prefix'], axis=1, inplace=True)
-    print('Created binary col female_teacher and dropped teachers_prefix')
+    # print('Created binary col female_teacher and dropped teachers_prefix')
 
     # for col in df.select_dtypes(include=[object]):
     #     df[col].fillna('', inplace=True)
     #     print('Filled NaN in string column {} with empty string'.format(col))
-    print()
+    # print()
 
     return df
 
@@ -403,13 +402,22 @@ def get_outcome_lbl():
 ############################# 3) PRE PROCESS DATA #############################
 ###############################################################################
 
-def get_temporal_dfs(df, d_col, target_col, prediction_gap, pred_win_len, cols_to_discrete=None, print_tab=''):
+def get_temporal_dfs(df, d_col, target_col, pred_win_len, prediction_gap=0, cols_to_discrete=None):
     '''
-    TODO
-    '''
-    if print_tab:
-        print_tab += '\t'
+    Function to obtain dfs for temporal validation sets.
 
+    Inputs:
+        - df
+        - d_cols. (str): date column
+        - target_col (str): outcome
+        - pred_win_len(int): days for the rolling window.
+        - prediction_gap(int): days of the gap to predict. Default is 0.
+        - cols_to_discrete(lst of str): columns to make discrete. Default is None and
+            the function will obtain them.
+    
+    Output:
+        - dictionary 
+    '''
     if not cols_to_discrete:
         cols_to_discrete = get_cols_to_discrete(df)
 
@@ -422,7 +430,7 @@ def get_temporal_dfs(df, d_col, target_col, prediction_gap, pred_win_len, cols_t
     # Create dummies before processing DFs so all datasets have the same number of features
     cols_to_binary = clean_cols_to_binary(df, target_col)
     print("Creating binary columns:", cols_to_binary)
-    df = create_dummies(df, cols_to_binary, print_tab)
+    df = create_dummies(df, cols_to_binary)
     print('\nComplete data set has {} obs and {} variables'\
           .format(df.shape[0], df.shape[1]))
 
@@ -435,7 +443,6 @@ def get_temporal_dfs(df, d_col, target_col, prediction_gap, pred_win_len, cols_t
         train_dict['start_date'] = start_date
         # this is the effective train date to account for the gap
         train_dict['end_date'] = split_date - gap
-        print("the train dict end date is: ", split_date - gap)
         rv[split_date]['train'] = train_dict
 
         test_dict = {}
@@ -445,19 +452,17 @@ def get_temporal_dfs(df, d_col, target_col, prediction_gap, pred_win_len, cols_t
 
         rv[split_date] = add_processed_dfs(df, d_col, rv[split_date],
                                            cols_to_binary,
-                                           cols_to_discrete,
-                                           print_tab)
+                                           cols_to_discrete)
         split_date += pred_window
 
     return rv
 
 ### HELPER FUNCTIONS
-def add_processed_dfs(df, d_col, split_rv, cols_to_binary, cols_to_discrete, print_tab=''):
+def add_processed_dfs(df, d_col, split_rv, cols_to_binary, cols_to_discrete):
     '''
-    TODO
+    Processes a df 
     '''
-    if print_tab:
-        print_tab += '\t'
+    print_tab = '\t'
 
     train_start_d = split_rv['train']['start_date']
     train_end_d = split_rv['train']['end_date']
@@ -467,8 +472,8 @@ def add_processed_dfs(df, d_col, split_rv, cols_to_binary, cols_to_discrete, pri
     # Get the train and test df, process them, add them to the corresponding split dictionary
     train_df = df[df[d_col] >= train_start_d][df[d_col] <= train_end_d]\
                 .copy(deep=True)
-    print('Working with train df')
-    train_df = process_df(train_df, cols_to_binary, cols_to_discrete)
+    print(print_tab, 'Working with train df')
+    train_df = process_df(train_df, cols_to_binary, cols_to_discrete, print_tab=print_tab)
     split_rv['train']['df'] = train_df
     print(print_tab, 'Train DF starts at {}, ends at {}, has {} obs and {} cols'.format(train_df[d_col].min(),
                                    train_df[d_col].max(), train_df.shape[0],
@@ -477,8 +482,8 @@ def add_processed_dfs(df, d_col, split_rv, cols_to_binary, cols_to_discrete, pri
     print()
     test_df = df[df[d_col] >= test_start_d][df[d_col] <= test_end_d]\
                 .copy(deep=True)
-    print('Working with test df')
-    test_df = process_df(test_df, cols_to_binary, cols_to_discrete)
+    print(print_tab, 'Working with test df')
+    test_df = process_df(test_df, cols_to_binary, cols_to_discrete, print_tab=print_tab)
     split_rv['test']['df'] = test_df
     print(print_tab, 'Test DF starts at {}, ends at {}, has {} obs and {} cols'.format(test_df[d_col].min(), test_df[d_col].max(),
                                    test_df.shape[0], test_df.shape[1]))
@@ -517,12 +522,10 @@ def process_df(df, cols_to_binary, cols_to_discrete=None,
     clean_df = fill_missing_vals(df, cols_to_discrete)
     if not cols_to_discrete:
         cols_to_discrete = get_cols_to_discrete(clean_df)
-    print()
-    print(print_tab, "Discretizing continous columns...")
 
     # Discretize continuos columns
+    print(print_tab, "Discretizing continous columns...")
     discretize_cont(df, cols_to_discrete, quantiles, q_labels)
-    print()
 
     # Create dummy columns for the columns we just discretized
     print(print_tab, "Creating missing binary columns of just created discretized columns...")
@@ -552,10 +555,8 @@ def fill_missing_vals(df, cols_to_fill=None):
 
     for col in cols_to_fill:
         try:
-            print("\tFilling missing values for numeric col:", col)
             df[col].fillna(df[col].median(), inplace=True)
         except:
-            print("Could not fill missing values for col:", col)
             continue
 
     # for col in df.select_dtypes(include=[object]):
@@ -584,14 +585,12 @@ def discretize_cont(df, cols_to_discrete, quantiles, q_labels,
 
     new_discretes = []
     for col in cols_to_discrete:
-        print("\tDiscretizing var:", col)
         col_new_name = col + "_discrete"
         df[col_new_name] = pd.qcut(df[col],
                                   q=quantiles,
                                   labels=q_labels)
         if cols_to_binary and (col_new_name not in cols_to_binary):
             cols_to_binary.append(col_new_name)
-            print("\t\tAdded {} to cols_to_binary".format(col_new_name))
     
     # 1 cambio
     if cols_to_binary:
@@ -609,7 +608,6 @@ def create_dummies(df, cols_to_binary, print_tab=''):
     '''
     if print_tab:
         print_tab += '\t'
-    print(print_tab, 'Creating dummies for', cols_to_binary)
 
     return pd.get_dummies(df, dummy_na=True, columns=cols_to_binary)
 
