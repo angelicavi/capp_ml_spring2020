@@ -26,13 +26,16 @@ from dateutil.relativedelta import relativedelta
 ############################# 1) READ DATA ####################################
 ###############################################################################
 
-def get_projects_df(data_filepath):
+def get_projects_df(data_filepath=None):
     '''
     Read the projects csv file into a pandas df. Converts date columns to datetime format and string boolean columns to boolean.
     Input:
         -data_filepath (str) of the location of the csv file
     Ouput: pandas dataframe.
     '''
+    if not data_filepath:
+        data_filepath = "data/projects_2012_2013.csv"
+
     var_types = {'projectid':str,
                  'teacher_acctid':str,
                  'schoolid':str,
@@ -51,21 +54,13 @@ def get_projects_df(data_filepath):
     df = pd.read_csv(data_filepath, dtype=var_types)
 
     for col in date_cols:
-        # print("Converting {} to datetime".format(col))
         df[col] = pd.to_datetime(df[col], format='%m/%d/%y')
 
     for col in bool_cols:
-        # print("Converting {} to binary".format(col))
         df[col] = df[col].map(to_binary)
 
     df['female_teacher'] = df['teacher_prefix'].map(to_gender)
     df.drop(['teacher_prefix'], axis=1, inplace=True)
-    # print('Created binary col female_teacher and dropped teachers_prefix')
-
-    # for col in df.select_dtypes(include=[object]):
-    #     df[col].fillna('', inplace=True)
-    #     print('Filled NaN in string column {} with empty string'.format(col))
-    # print()
 
     return df
 
@@ -356,7 +351,7 @@ def get_cols_to_binary(df, unique_val_lim=10):
 
     return cols_to_binary
 
-def clean_cols_to_binary(df, target_col, irrelevant_cols=None):
+def clean_cols_to_binary(df, target_col=None, irrelevant_cols=None):
     '''
     Obtains the final list of proposed columns to binary by cleaning
     columns not relevant to be converted into dummies and the target column.
@@ -378,7 +373,10 @@ def clean_cols_to_binary(df, target_col, irrelevant_cols=None):
                            'school_magnet',
                            'school_charter']
 
-    for col in irrelevant_cols + [target_col]:
+    if target_col:
+        irrelevant_cols += [target_col]
+
+    for col in irrelevant_cols :
         try:
             cols_to_binary.remove(col)
         except:
@@ -588,7 +586,8 @@ def discretize_cont(df, cols_to_discrete, quantiles, q_labels,
         col_new_name = col + "_discrete"
         df[col_new_name] = pd.qcut(df[col],
                                   q=quantiles,
-                                  labels=q_labels)
+                                  labels=q_labels,
+                                  duplicates='drop')
         if cols_to_binary and (col_new_name not in cols_to_binary):
             cols_to_binary.append(col_new_name)
     

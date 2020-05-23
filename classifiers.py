@@ -13,7 +13,7 @@ import numpy as np
 from datetime import timedelta
 from datetime import datetime
 from scipy import stats
-from data_processing import get_outcome_lbl
+from data_processing import get_outcome_lbl, get_projects_df, get_cols_to_discrete
 
 # TODO delete
 import pytz
@@ -320,7 +320,10 @@ def get_predictors(df):
     '''
     predictors = list(df.loc[:,df.apply(lambda x: x.isin([0, 1]).all())].columns)
     outcome = get_outcome_lbl()
-    predictors.remove(outcome)
+    try:
+        predictors.remove(outcome)
+    except ValueError:
+        pass
 
     return predictors
 
@@ -432,44 +435,60 @@ def joint_sort_descending(l1, l2):
     idx = np.argsort(l1)[::-1]
     return l1[idx], l2[idx]
 
-############ 3) GET PREDICTIONS AND EVALUATE CLASSIFIERS ########
+###############################################################################
+############################### 2) SAVE PREDICTIONS ###########################
+###############################################################################
 
-def get_pred_labels(classifier, c_type, xtest, threshold):
+def get_predictions(clf, train_df, test_df, threshold=5, save_csv=True):
     '''
-    # TODO
+    Trains and predicts for a given classifier and returns a df with
+    a 'prediction' column.
+
+    Input:
+        - clf: classifier object
+        - train_df and test_df
+        - threshold: to get top k
+        - save_csv (bool): Default true, to save csv file with prediction
+            results
+
+    Output: results df, which includes all IDs and numeric columns that
+        where discretized and dropped
     '''
-    if c_type == 'LinearSVC':
-        confidence_score = classifier.decision_function(x_test)
-        return [1 if score > threshold else 0 for score in confidence_score]
+    predictors = get_predictors(test_df)
+    outcome = get_outcome_lbl()
+    X_test = test_df[predictors]
+    X_train = train_df[predictors]
+    y_train = train_df[outcome]
 
-    if c_type in ['LogisticRegression', 'KNeighborsClassifier', 'DecisionTreeClassifier'] :
-        pred_scores = classifier.predict_proba(x_test)
-        return [1 if score[1] > threshold else 0 for score in pred_scores]
+    # Train
+    clf.fit(X_train, y_train)
 
-def evaluate_classifier(classifier, ytest, pred_labels, accuracy=True, f1=True, precision=True, recall=True):
-    '''
-    # TODO
-    '''
-    evaluation_results = {}
+    # Get prediction probabilities
+    if isinstance(clf, LinearSVC):
+        y_pred_probs = clf.decision_function(X_test)
+    else:
+        y_pred_probs = clf.predict_proba(X_test)[:,1]
+    X_test['pred_prob'] = y_pred_probs
 
-    if accuracy:
-        evaluation_results['accuracy'] = accuracy_score(y_test, pred_labels)
-    if f1:
-        evaluation_results['f1'] = f1_score(y_test, pred_labels)
-    if precision_score:
-        evaluation_results['precision'] = precision_score(y_test, pred_labels)
-    if recall:
-        evaluation_results['recall'] = recall_score(y_test, pred_labels)
+    # Get binary prediction
+    X_test.sort_values(by='pred_prob', axis=0, ascending=False, inplace=True)
+    y_prediction = generate_binary_at_k(y_pred_probs, threshold)
+    X_test['prediction'] = y_prediction
+    X_test.drop('pred_prob', axis=1, inplace=True)
 
-    return evaluation_results
+    # Get ids from test_df
+    original_df = get_projects_df()
+    numeric_cols = get_cols_to_discrete(original_df)
+    id_cols = ['projectid', 'teacher_acctid', 'schoolid', 'school_ncesid']
+    results = X_test.join(original_df[id_cols + numeric_cols])
 
-######### 4) TEST DIFFERENT PARAMETERS FOR CLASSIFIERS ##########
+    if save_csv:
+        file_name = 'results/prediction_results.csv'
+        results.to_csv(file_name)
+
+    return results
 
 
-### HELPER FUNCTIONS
-def view_pred_scores_hist(classifier, x_test):
-    '''
-    # TODO
-    '''
-    plt.hist(classifier.predict_proba(x_test)[:,1])
+
+
 
