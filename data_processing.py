@@ -101,10 +101,14 @@ def create_period_outcome(df, initial_date, end_date):
     TO DO
     '''
     outcome_label = get_outcome_lbl()
+
     df[outcome_label] = (df[end_date] - df[initial_date]) > pd.to_timedelta(60, unit='days')
-    
-    print("Created outcome feature:", outcome_label)
-    print(df[outcome_label].describe())
+    max_date = df[initial_date].max()
+    sixty_day_window = (max_date - df[initial_date]) < pd.to_timedelta(60, unit='days')
+
+    df.loc[sixty_day_window, outcome_label] = np.nan
+    print("Created outcomes label")
+    return df
 
 ###############################################################################
 ############################# 2) EXPLORE DATA #################################
