@@ -160,6 +160,116 @@ def run_clfs(grid_size, thresholds, temporal_dfs, plot=False, write_csv=False):
 
     return results
 
+def run_clfs_RFs_test(clfs, grid, thresholds, temporal_dfs, plot=False, save_csv=False):
+    '''
+    TODO
+    '''
+    dT_CHI = datetime.now(TZ_CHI)
+    time_now = dT_CHI.strftime("%H_%M_%S")
+    print("Start time:", time_now)
+
+    results = get_results_df(thresholds)
+    outcome = get_outcome_lbl()
+
+    # TODO: DELETE
+    n = 1
+
+    for split_date in temporal_dfs:
+        # Get test df and its dates
+        test_df = temporal_dfs[split_date]['test']['df']
+        test_start = temporal_dfs[split_date]['test']['start_date']
+        test_end = temporal_dfs[split_date]['test']['end_date']
+
+        # Get train df and its dates
+        train_df = temporal_dfs[split_date]['train']['df']
+        train_start = temporal_dfs[split_date]['train']['start_date']
+        train_end = temporal_dfs[split_date]['train']['end_date']
+
+        # Get features and labels for test and train dfs
+        predictors = get_predictors(test_df) # they are the same for all
+        X_test = test_df[predictors]
+        y_test = test_df[outcome]
+        X_train = train_df[predictors]
+        y_train = train_df[outcome]
+
+        # Fit each of the models with the training data
+        for clf in clfs:
+            print()
+            print()
+            print("Working with: ", clf)
+            params = grid[clf]
+            model = clfs[clf]
+
+            # Create a Param Grid with the params to explore
+            for p in ParameterGrid(params):
+                try:
+                    print()
+                    print("\tModel", n)
+                    n += 1
+                    model.set_params(**p)
+                    print("\t\tModel", model)
+                    model.fit(X_train, y_train)
+                    print('\t\tSuccesfully trained model.')
+
+                    # Apply the model to the test data
+                    if clf == 'SVM':
+                        y_pred_probs = model.decision_function(X_test)
+                    else:
+                        y_pred_probs = model.predict_proba(X_test)[:,1]
+                    print('\t\tSuccesfully predicted.')
+
+                    y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(
+                            y_pred_probs, y_test), reverse=True))
+
+                    # Calculate the performance metrics for the model
+                    metrics_stats = []
+                    for thres in thresholds:
+                        pres = precision_at_k(y_test_sorted, y_pred_probs_sorted, thres)
+                        rec = recall_at_k(y_test_sorted, y_pred_probs_sorted, thres)
+                        f1 = f1_at_k(y_test_sorted, y_pred_probs_sorted, thres)
+                        metrics_stats.extend([pres, rec, f1])
+
+                    # Create the row that will be inserted in the results df with the info for this model
+                    # The position for each row element corresponds exactly to the colums in the results df
+                    model_info = [clf, model, p, split_date,
+                                  train_start, train_end, test_start, test_end,
+                                  precision_at_k(y_test_sorted, y_pred_probs_sorted, 100)] +\
+                                  metrics_stats +\
+                                  [roc_auc_score(y_test, y_pred_probs)]
+
+                    # Add the model_info row to the next row in the results df
+                    results.loc[len(results)] = model_info
+                    print("\t\tAdded metrics row in results.")
+
+                    if plot:
+                        plot_precision_recall_n(y_test, y_pred_probs, clf)
+
+                        #Plot histogram of predicted scores
+                        plt.hist(y_pred_probs)
+                        plt.title('Histogram of Yscores')
+                        plt.show()
+
+                        # Plot features' importance
+                        get_feature_importance(clf, X_train, model)
+
+                except:
+                    print('An error happened')
+                    continue
+
+    dT_CHI = datetime.now(TZ_CHI)
+    time_now = dT_CHI.strftime("%H_%M_%S")
+    file_name = 'results/grid_{}_time_{}results.csv'.format('RF', time_now)
+    if save_csv:
+        try:
+            results.to_csv(file_name)
+            print("Saved file:", file_name)
+        except:
+            print('could not save file: ', file_name)
+
+    return results
+
+
+
 ### HELPERS ###
 def get_clfs_params(grid_size):
     '''
@@ -425,6 +535,7 @@ def get_feature_importance(model_name, X_train, clf, n_importances=10):
     ax.set_yticklabels(important_features) #Replace default x-ticks with xs, then replace xs with labels
     ax.invert_yaxis()
     ax.set_title('Feature Importance')
+    plt.shoow()
 
 def joint_sort_descending(l1, l2):
     '''

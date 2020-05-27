@@ -321,7 +321,7 @@ def get_cols_to_discrete(df):
             df.select_dtypes(include=[np.number])]
     rv = []
     for col in cols_to_discrete:
-        if not ('latitude' in col or 'longitude' in col):
+        if not ('latitude' in col or 'longitude' in col or 'not_funded_within_60days' in col):
             rv.append(col)
 
     return rv
@@ -452,6 +452,7 @@ def get_temporal_dfs(df, d_col, target_col, pred_win_len, prediction_gap=0, cols
         test_dict['end_date'] = split_date + pred_window - gap
         rv[split_date]['test'] = test_dict
 
+        # print('cols_to_discrete', cols_to_discrete)
         rv[split_date] = add_processed_dfs(df, d_col, rv[split_date],
                                            cols_to_binary,
                                            cols_to_discrete)
@@ -590,8 +591,7 @@ def discretize_cont(df, cols_to_discrete, quantiles, q_labels,
         col_new_name = col + "_discrete"
         df[col_new_name] = pd.qcut(df[col],
                                   q=quantiles,
-                                  labels=q_labels,
-                                  duplicates='drop')
+                                  labels=q_labels)
         if cols_to_binary and (col_new_name not in cols_to_binary):
             cols_to_binary.append(col_new_name)
     
